@@ -75,7 +75,7 @@ class ModelMetaCls(type):
         for k,v in attrs.items():
             if isinstance(v,Field):
                 mapping[k] = v
-                if v.primaryKey
+                 if v.primaryKey
                     if primaryKey:
                         raise RuntimeError('Double primarykey found:{},{}'.format(primaryKey, v.primaryKey))
                     else:
@@ -91,16 +91,23 @@ class ModelMetaCls(type):
         # 以下都是要返回的东西了，刚刚记录下的东西，如果不返回给这个类，又谈得上什么动态创建呢？
         # 到此，动态创建便比较清晰了，各个子类根据自己的字段名不同，动态创建了自己
         # 下面通过attrs返回的东西，在子类里都能通过实例拿到，如self
+        # 只是为了Model编写方便，放在元类里和放在Model里都可以
         attrs['__mapping__'] = mapping
         attrs['__table__'] = tableName
         attrs['__primaryKey__'] = primaryKey
         attrs['__fields__'] = fields
-        # 只是为了Model编写方便，放在元类里和放在Model里都可以
+        #sql语句
         attrs['__select__'] = "select %s ,%s from %s " % (primaryKey,','.join(map(lambda f: '%s' % (mapping.get(f).name or f ),fields )),tableName)
         attrs['__update__'] = "update %s set %s where %s=?"  % (tableName,', '.join(map(lambda f: '`%s`=?' % (mapping.get(f).name or f), fields)),primaryKey)
-        attrs['__insert__'] = "insert into %s (%s,%s) values (%s);" % (tableName,primaryKey,','.join(map(lambda f: '%s' % (mapping.get(f).name or f),fields)),create_args_string(len(fields)+1))
+        attrs['__insert__'] = "insert into %s (%s,%s) values (%s);" % (tableName,primaryKey,','.join(map(lambda f: '%s' % (mapping.get(f).name or f),fields)),self.create_args_string(len(fields)+1))
         attrs['__delete__'] = "delete from %s where %s= ? ;" % (tableName,primaryKey)
-        return type.__new__(cls,name,bases,attrs)      
+        return type.__new__(cls,name,bases,attrs)
+
+    def create_args_string(self, num):
+        L = []
+        for i in range(num):
+            L.append('?')
+        return (','.join(L))  
 
 
 class Model(dict, metaclass = ModelMetaCls):
@@ -113,8 +120,18 @@ class Model(dict, metaclass = ModelMetaCls):
             raise e
     def __setattr__(self, key, value):
         self[key] = value
-    
-  # 取默认值，字段(Field)类有一个默认值属性，默认值也可以是函数
+
+
+#查询字段计数：替换成sql识别的'？'
+#根据输入的字段生成占位符列表
+    def create_args_string(num):
+        L = []
+        for i in range(num):
+            L.append('?')
+        #用，将占位符？拼接起来
+        return (','.join(L))
+
+# 取默认值，字段(Field)类有一个默认值属性，默认值也可以是函数
     def getValueOrDefault(self,key): 
       value=getattr(self,key)
       if value is None:
